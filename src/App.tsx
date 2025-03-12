@@ -11,6 +11,9 @@ type Wallet = {
     networkSymbol: string;
 };
 
+
+
+
 type UserPortfolioData = {
     aggregatedData: {
         holdingsCount: string;

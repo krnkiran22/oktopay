@@ -1,7 +1,14 @@
 import { useOkto } from "@okto_web3/react-sdk";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { tokenTransfer, evmRawTransaction } from "@okto_web3/react-sdk"; // Assuming evmRawTransaction is available
 import { encodeFunctionData } from "viem";
+import { getPortfolioActivity, getOrdersHistory } from "@okto_web3/react-sdk";
+import { ethers } from "ethers"; // Correct import for ethers.js v6
+declare global {
+    interface Window {
+      ethereum: any; // Use a more specific type if available
+    }
+  }
 
 type Wallet = {
     caipId: string;
@@ -63,6 +70,114 @@ const HomePage: React.FC<HomePageProps> = ({ accounts, portfolio }) => {
     const [contactName, setContactName] = useState("");
     const [contactWalletAddress, setContactWalletAddress] = useState("");
     const [status, setStatus] = useState("");
+    const [contacts, setContacts] = useState<{ name: string; walletAddress: string }[]>([]);
+
+    // Contract ABI
+    const contractABI = [
+        {
+            "inputs": [
+                {
+                    "internalType": "string",
+                    "name": "_name",
+                    "type": "string"
+                },
+                {
+                    "internalType": "address",
+                    "name": "_walletAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "addContact",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "name",
+                    "type": "string"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "walletAddress",
+                    "type": "address"
+                }
+            ],
+            "name": "ContactAdded",
+            "type": "event"
+        },
+        {
+            "inputs": [],
+            "name": "getAllContacts",
+            "outputs": [
+                {
+                    "components": [
+                        {
+                            "internalType": "string",
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "walletAddress",
+                            "type": "address"
+                        }
+                    ],
+                    "internalType": "struct ContactManager.Contact[]",
+                    "name": "",
+                    "type": "tuple[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ];
+
+    // Contract Address
+    const contractAddress = "0x1c5227db6ef3f0dc8b95e6a1704b53c889b7dc8d";
+
+    // Fetch Contacts
+    const fetchContacts = async () => {
+        try {
+            // Initialize ethers provider
+            const provider = new ethers.BrowserProvider(window.ethereum); // Use BrowserProvider instead of providers.Web3Provider
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
+    
+            // Call the getAllContacts function
+            const contacts = await contract.getAllContacts();
+            setContacts(contacts);
+        } catch (error) {
+            console.error("Error fetching contacts:", error);
+        }
+    };
+
+    // Fetch contacts when the component mounts
+    useEffect(() => {
+        fetchContacts();
+    }, []);
+
+    async function fetchActivity() {
+        try {
+            const activity = await getPortfolioActivity(oktoClient);
+            console.log('Portfolio activity:', activity);
+        } catch (error) {
+            console.error('Error fetching portfolio activity:', error);
+        }
+    }
+
+    async function fetchOrderHistory() {
+        try {
+            const history = await getOrdersHistory(oktoClient);
+            console.log('Order history:', history);
+        } catch (error) {
+            console.error('Error fetching order history:', error);
+        }
+    }
 
     async function handleTransfer() {
         try {
@@ -91,42 +206,23 @@ const HomePage: React.FC<HomePageProps> = ({ accounts, portfolio }) => {
 
         try {
             // 1. Define Contract Interaction
-            const functionName = "setValue";
-            const functionArgs = [123]; // Replace with actual arguments if needed
+            const functionName = "addContact";
+            const functionArgs: readonly [string, `0x${string}`] = [contactName, contactWalletAddress as `0x${string}`];
 
             // 2. Encode Function Data
             const functionData = encodeFunctionData({
-                abi: [
-                    {
-                        name: functionName,
-                        type: "function",
-                        stateMutability: "nonpayable",
-                        inputs: [{ type: "uint256", name: "_value" }],
-                    },
-                ],
+                abi: contractABI,
                 functionName,
                 args: functionArgs,
             });
 
             // 3. Execute Transaction
-            // const rawTxParams = {
-            //     caip2Id: "eip155:1", // Replace with the correct chain ID if needed
-            //     transaction: {
-            //         from: accounts[0].address, // Use the first wallet address
-            //         to: "0xcontractAddress", // Replace with the actual contract address
-            //         data: functionData,
-            //         value: BigInt(0), // Replace with the actual value if needed
-            //     },
-            // };
-
-            // Execute the raw transaction
-            const result = await evmRawTransaction(oktoClient,  {
-                caip2Id: "eip155:1", // Replace with the correct chain ID if needed
+            const result = await evmRawTransaction(oktoClient, {
+                caip2Id: "eip155:84532", // Replace with the correct chain ID if needed
                 transaction: {
-                    from: "" as `0x${string}`, // Use the first wallet address
-                    to: "0xcontractAddress" as `0x${string}`, // Replace with the actual contract address
+                    from: accounts[0].address as `0x${string}`, // Use the first wallet address
+                    to: contractAddress as `0x${string}`, // Replace with the actual contract address
                     data: functionData,
-                    value: BigInt(0), // Replace with the actual value if needed
                 },
             });
 
@@ -135,6 +231,7 @@ const HomePage: React.FC<HomePageProps> = ({ accounts, portfolio }) => {
             alert(`Contact Added: ${contactName} - ${contactWalletAddress}`);
             setContactName("");
             setContactWalletAddress("");
+            fetchContacts(); // Refresh the contacts list
         } catch (error) {
             console.error("Error executing transaction:", error);
             alert("Failed to add contact. Please try again.");
@@ -194,8 +291,20 @@ const HomePage: React.FC<HomePageProps> = ({ accounts, portfolio }) => {
                         style={{ marginRight: "10px" }}
                     />
                     <button onClick={handleAddContact}>Add Contact</button>
+                    <button onClick={fetchActivity}>Fetch Portfolio Activity</button>
+                    <button onClick={fetchOrderHistory}>Fetch Order History</button>
                 </div>
             </div>
+
+            {/* Display Contacts */}
+            <h2>Contacts</h2>
+            <ul>
+                {contacts.map((contact, index) => (
+                    <li key={index}>
+                        <strong>Name:</strong> {contact.name}, <strong>Address:</strong> {contact.walletAddress}
+                    </li>
+                ))}
+            </ul>
         </div>
     );
 };
