@@ -10,10 +10,6 @@ type Wallet = {
     caip2Id: string;
     networkSymbol: string;
 };
-
-
-
-
 type UserPortfolioData = {
     aggregatedData: {
         holdingsCount: string;
