@@ -103,7 +103,7 @@ function App() {
                         onClick={handleGetStarted}
                         style={{ padding: "10px 20px", fontSize: "16px" }}
                     >
-                        Get Started
+                        Get Started with oktopay
                     </button>
                 </div>
             ) : isLoading ? (
