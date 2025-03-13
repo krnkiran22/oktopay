@@ -105,6 +105,7 @@ function App() {
                     >
                         Get Started
                     </button>
+                    <h1>git-push</h1>
                 </div>
             ) : isLoading ? (
                 // Loading State
